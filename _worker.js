@@ -4,6 +4,7 @@
 // Plus: H / non-H zones on the main source's explore page (2026-11-18):
 // books carrying a "spicy" marker tag are filtered out of the non-H zone
 // (served via /flt/search) and gathered into an H zone (/zone/list).
+// Plus: curated two-tag combo filters (/multi/list, 2026-11-18).
 const PROD = "https://novel.absdjkl.ccwu.cc";
 
 // Recommendation registry: append one entry per book per batch.
@@ -19,6 +20,23 @@ const SPICY = ["氛围:暗黑重口", "关系:NP", "关系:NTR", "设定:双性"
 const SPICY_SET = new Set(SPICY);
 const SPICY_LABELS = { "氛围:暗黑重口": "暗黑重口", "关系:NP": "NP", "关系:NTR": "NTR", "设定:双性": "双性", "人设:小倌": "小倌" };
 function isSpicy(b) { return (b.tags || []).some(t => SPICY_SET.has(t)); }
+
+// Curated two-tag combos for the explore page (counts checked 2026-11-18
+// against the catalog; rarer tag first = base query for /multi/list).
+const COMBOS = [
+  ["题材:刑侦", "题材:悬疑", "刑侦×悬疑"],
+  ["关系:双强", "氛围:甜宠", "双强×甜宠"],
+  ["关系:双强", "题材:重生", "双强×重生"],
+  ["题材:娱乐圈", "氛围:甜宠", "甜宠×娱乐圈"],
+  ["题材:校园", "氛围:甜宠", "甜宠×校园"],
+  ["剧情:暗恋", "氛围:甜宠", "暗恋×甜宠"],
+  ["题材:系统", "剧情:逆袭", "逆袭×系统"],
+  ["题材:穿书", "题材:穿越", "穿书×穿越"],
+  ["题材:重生", "题材:穿越", "穿越×重生"],
+  ["题材:前世今生", "题材:重生", "前世今生×重生"],
+  ["人设:将军", "时空:古代", "将军×古代"],
+  ["题材:穿越", "氛围:甜宠", "甜宠×穿越"],
+];
 
 const RULES = {
   ruleBookInfo: { author: "$.author", intro: "$.intro", kind: "$.tags", name: "$.title", tocUrl: "$.tocUrl" },
@@ -106,10 +124,36 @@ async function zoneList(u, origin) {
   return { total: all.length, page, books: all.slice((page - 1) * 20, page * 20) };
 }
 
+// Multi-tag filter: page through the base tag on production, keep books
+// carrying every requested tag, spicy books removed.
+async function multiList(u, origin) {
+  const page = parseInt(u.searchParams.get("page") || "1", 10);
+  const tags = (u.searchParams.get("tags") || "").split(",").map(s => s.trim()).filter(Boolean);
+  if (!tags.length) return { total: 0, page, books: [] };
+  const all = [];
+  const seen = new Set();
+  for (let p = 1; p <= 12; p++) {
+    try {
+      const resp = await fetch(PROD + "/api/search?tag=" + encodeURIComponent(tags[0]) + "&page=" + p, { headers: { "x-pub-origin": origin } });
+      const data = await resp.json();
+      const bs = data.books || [];
+      if (!bs.length) break;
+      for (const b of bs) {
+        if (seen.has(b.id) || isSpicy(b)) continue;
+        if (tags.every(t => (b.tags || []).includes(t))) { seen.add(b.id); all.push(b); }
+      }
+      if (bs.length < 20) break;
+    } catch (e) { break; }
+  }
+  all.sort((a, b) => a.id - b.id);
+  return { total: all.length, page, books: all.slice((page - 1) * 20, page * 20) };
+}
+
 function fltify(url) { return typeof url === "string" ? url.replace("/api/search", "/flt/search") : url; }
 
 // Rebuild the main source's explore page: non-H zone on top (all original
-// tiles, filtered), H zone at the bottom. Any failure -> source unchanged.
+// tiles, filtered), combo filters, H zone at the bottom.
+// Any failure -> source unchanged.
 function transformKinds(src, origin) {
   try {
     const kinds = JSON.parse(src.exploreUrl);
@@ -120,6 +164,10 @@ function transformKinds(src, origin) {
     out.push({ ...kinds[0], url: fltify(kinds[0].url) });
     out.push({ ...kinds[1], url: fltify(kinds[1].url) });
     for (const k of kinds.slice(2)) out.push({ ...k, url: fltify(k.url) });
+    out.push({ title: "🎛 组合筛选", url: origin + "/flt/search?page={{page}}", style: banner });
+    for (const c of COMBOS) {
+      out.push({ title: c[2], url: origin + "/multi/list?tags=" + encodeURIComponent(c[0] + "," + c[1]) + "&page={{page}}", style: { layout_flexGrow: 1, layout_wrapBefore: false } });
+    }
     out.push({ title: "📂 H区", url: origin + "/zone/list?zone=spicy&page={{page}}", style: banner });
     out.push({ title: "🔞 H区全部", url: origin + "/zone/list?zone=spicy&page={{page}}", style: banner });
     for (const tag of SPICY) {
@@ -161,6 +209,7 @@ export default {
     if (u.pathname === "/rec/list") return jsonResp(await recList(u, u.origin));
     if (u.pathname === "/flt/search") return jsonResp(await fltSearch(u, u.origin));
     if (u.pathname === "/zone/list") return jsonResp(await zoneList(u, u.origin));
+    if (u.pathname === "/multi/list") return jsonResp(await multiList(u, u.origin));
     const target = PROD + u.pathname + u.search;
     const headers = new Headers(request.headers);
     headers.set("x-pub-origin", u.origin);
