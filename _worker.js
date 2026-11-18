@@ -119,7 +119,12 @@ function transformKinds(src, origin) {
     out.push({ title: "📂 非H区", url: origin + "/flt/search?page={{page}}", style: banner });
     out.push({ ...kinds[0], url: fltify(kinds[0].url) });
     out.push({ ...kinds[1], url: fltify(kinds[1].url) });
-    for (const k of kinds.slice(2)) out.push({ ...k, url: fltify(k.url) });
+    for (const k of kinds.slice(2)) {
+      // No author section on the explore page (2026-11-18, her call):
+      // authors keep multiplying; she finds their books via search instead.
+      if (k.title === "📂 作者" || (k.url || "").includes("author=")) continue;
+      out.push({ ...k, url: fltify(k.url) });
+    }
     out.push({ title: "📂 H区", url: origin + "/zone/list?zone=spicy&page={{page}}", style: banner });
     out.push({ title: "🔞 H区全部", url: origin + "/zone/list?zone=spicy&page={{page}}", style: banner });
     for (const tag of SPICY) {
