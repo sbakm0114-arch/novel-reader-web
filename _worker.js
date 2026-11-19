@@ -12,6 +12,10 @@ const RECS = [
   { date: "2026-11-18", title: "定海浮生录", author: "非天夜翔" },
   { date: "2026-11-18", title: "一剑霜寒", author: "语笑阑珊" },
   { date: "2026-11-18", title: "穿成万人迷的炮灰竹马", author: "妾在山阳" },
+  { date: "2026-11-19", title: "地球上线", author: "莫晨欢" },
+  { date: "2026-11-19", title: "二零一三", author: "非天夜翔" },
+  { date: "2026-11-19", title: "小蘑菇", author: "一十四洲" },
+  { date: "2026-11-19", title: "土匪攻略", author: "语笑阑珊" },
 ];
 
 // "Spicy" marker tags: a catalog book carrying any of these counts as H-zone.
